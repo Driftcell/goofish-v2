@@ -126,14 +126,21 @@ class AgisoApi:
             return
 
         if template:
+            logger.info("Formatting template with item information", item_id=item.get("productId", "unknown"))
             goods_content_without_link = [
-                f"{short_url['description']}" for short_url in item["shortUrls"]
+            f"{short_url['description']}" for short_url in item["shortUrls"]
             ]
-            template.format(
-                goods_information=item["copywriterInfo"],
-                goods_content_without_link="\n".join(goods_content_without_link),
-            )
+            try:
+                template = template.format(
+                    goods_information=item.get("copywriterInfo", ""),
+                    goods_content_without_link="\n".join(goods_content_without_link),
+                )
+                logger.debug("Template successfully formatted")
+            except Exception as e:
+                logger.error("Failed to format template", error=str(e), item_id=item.get("productId", "unknown"))
+                template = item.get("copywriterInfo", "")
         else:
+            logger.info("Using default template from item copywriterInfo")
             template = item.get("copywriterInfo", "")
 
         body = {

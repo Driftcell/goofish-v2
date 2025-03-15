@@ -47,7 +47,7 @@ async def p_login(
 
     await db.users.update_one(
         {"token": token},
-        {"$set": {"goofish": goofish_json, "ctrip": ctrip_json}},
+        {"$set": {"goofish": goofish_json, "ctrip": ctrip_json, "expired": False}},
         upsert=True,
     )
 

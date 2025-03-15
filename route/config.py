@@ -15,7 +15,7 @@ async def g_config(
     db: AsyncIOMotorDatabase = Depends(get_db),
     token: str = Depends(get_token),
 ):
-    config = await db.configs.find_one({"name": name})
+    config = await db.configs.find_one({"name": name, "token": token})
 
     presets = ["filter", "configt", "template", "description", "reply", "report"]
 

@@ -8,6 +8,7 @@ from api.agiso import AgisoApi
 from api.ctrip import CtripApi
 from db import MongoDB
 from helpers.agiso import AgisoLoginHelper
+from helpers.base import LoginState
 from helpers.ctrip import CtripLoginHelper
 
 from .utils import build_config, check_login
@@ -44,8 +45,8 @@ async def run(token: str, config, db: AsyncIOMotorDatabase, minio: Minio):
     if not user:
         raise ValueError("User not found")
 
-    ctrip_cookies = user["ctrip"]['cookies']
-    agiso_cookies = user["goofish"]['cookies']
+    ctrip_cookies = user["ctrip"]["cookies"]
+    agiso_cookies = user["goofish"]["cookies"]
 
     if not await check_login(platform="ctrip", cookies=ctrip_cookies):
         raise ValueError("User not logged in")
@@ -56,6 +57,14 @@ async def run(token: str, config, db: AsyncIOMotorDatabase, minio: Minio):
         )
 
         await ctrip_login_helper.init(cookies=ctrip_cookies)
+
+        if await ctrip_login_helper.check_login_state() != LoginState.LOGINED:
+            await db.users.update_one(
+                {"token": token},
+                {"$set": {"expired": True}},
+            )
+
+            raise ValueError("Ctrip login failed")
         alliance_id = ctrip_login_helper.alliance_id()
         sid = ctrip_login_helper.sid()
 
@@ -73,14 +82,21 @@ async def run(token: str, config, db: AsyncIOMotorDatabase, minio: Minio):
 
     # 爬虫
     await ctrip_api.run("上海")
+
     # 合并商品
-    template = config["template"]["value"]["template"]
+    template = config["template"]["template"]
     await GoodsManager(db).merge_all(template=template)
 
     # 上传商品
     async with async_playwright() as p:
         agiso_login_helper = AgisoLoginHelper(playwright=p)
-        await agiso_login_helper.init()
+        await agiso_login_helper.init(cookies=agiso_cookies)
+
+        if await agiso_login_helper.check_login_state() != LoginState.LOGINED:
+            await db.users.update_one(
+                {"token": token},
+                {"$set": {"expired": True}},
+            )
         token = await agiso_login_helper.get_token()
 
     agiso_cookies = [
@@ -106,8 +122,8 @@ async def run(token: str, config, db: AsyncIOMotorDatabase, minio: Minio):
             continue
 
         # 应用过滤器
-        filters = item["filter"]["keywords_filter"]
-        if item["filter"]["keywords_filter_enabled"] and filters:
+        filters = config["filter"]["keywords_filter"]
+        if config["filter"]["keywords_filter_enabled"] and filters:
             for keyword in filters:
                 if keyword in item["subName"] + item["copywriterInfo"] + item["title"]:
                     logger.info(
@@ -116,7 +132,7 @@ async def run(token: str, config, db: AsyncIOMotorDatabase, minio: Minio):
                     break
 
         # 应用价格过滤器
-        limits = config["configts"]["item_limits"]
+        limits = int(config["configt"]["item_limits"])
         if uploaded_count >= limits:
             logger.info(f"Reached the limits, stopping", limits=limits)
             break
@@ -127,6 +143,7 @@ async def run(token: str, config, db: AsyncIOMotorDatabase, minio: Minio):
                 draft=False,
                 price_mode=config["configt"]["price"]["mode"],
                 price=config["configt"]["price"]["value"],
+                template=config["description"]["template"],
             )
             uploaded_count += 1
             logger.info(f"Uploaded item", productId=item["productId"])
