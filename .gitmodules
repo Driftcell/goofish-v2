@@ -1,0 +1,3 @@
+[submodule "stealth.min.js"]
+	path = stealth.min.js
+	url = https://github.com/requireCool/stealth.min.js
