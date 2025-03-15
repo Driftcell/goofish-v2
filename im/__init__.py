@@ -7,7 +7,7 @@ from aiohttp import ClientSession
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from playwright.async_api import Playwright, Route
 
-from helpers.base import LoginHelper
+from helpers.base import LoginHelper, LoginState
 from route.utils import build_config
 
 from .types import IMContext, IMTask, IMTaskType
@@ -42,10 +42,10 @@ class GoofishIM(LoginHelper):
 
         await self._page.route("**/p_im-index.js", handler=self._inject)
         logger.info("JavaScript injection route handler set up")
-        
+
         await self._page.expose_function("sendChatMessage", self._on_message)
         logger.info("Exposed sendChatMessage function to browser")
-        
+
         logger.info("Navigating to Goofish IM page")
         await self._page.goto("https://www.goofish.com/im", wait_until="networkidle")
         logger.info("Navigation to Goofish IM complete")
@@ -56,14 +56,18 @@ class GoofishIM(LoginHelper):
         self._initialized_users = True
         self._task_executor_task = asyncio.create_task(self._task_executor())
         self._on_received_task = asyncio.create_task(self._on_received())
-        logger.info("GoofishIM service started successfully", 
-                   task_executor_running=True, 
-                   received_task_running=True)
+        self._check_login_state_task = asyncio.create_task(self._check_login_state())
+        logger.info(
+            "GoofishIM service started successfully",
+            task_executor_running=True,
+            received_task_running=True,
+        )
 
     async def stop(self):
         logger.info("Stopping GoofishIM service")
         await self._task_queue.put(None)
         self._on_received_task.cancel()
+        await self._playwright.stop()
         logger.info("GoofishIM service stopping tasks completed")
 
     async def send_message(self, userId: str, message: str):
@@ -93,10 +97,12 @@ class GoofishIM(LoginHelper):
                     type_=IMTaskType.SLEEP,
                     context=context,
                 )
-                
-                logger.debug("Queueing sleep and AI model task", 
-                            session_id=session_id, 
-                            sender_id=sender_id)
+
+                logger.debug(
+                    "Queueing sleep and AI model task",
+                    session_id=session_id,
+                    sender_id=sender_id,
+                )
                 await self._task_queue.put(task)
 
             self._received.clear()
@@ -109,31 +115,41 @@ class GoofishIM(LoginHelper):
     async def _sleep_task(self, context: IMContext):
         assert context.sleep is not None
         assert context.next_task is not None
-        
+
         logger.debug("Starting sleep task", sleep_duration=context.sleep)
         await asyncio.sleep(context.sleep)
-        logger.debug("Sleep task completed, queueing next task", 
-                    next_task_type=context.next_task.type_)
+        logger.debug(
+            "Sleep task completed, queueing next task",
+            next_task_type=context.next_task.type_,
+        )
         await self._task_queue.put(context.next_task)
 
     async def _ai_model_task(self, context: IMContext):
         assert context.session_id is not None
-        
+
         logger.info("Processing AI model task", session_id=context.session_id)
 
         chats = await self._chat_history(context.session_id)
-        logger.info("Retrieved chat history", session_id=context.session_id, chat_count=len(chats))
+        logger.info(
+            "Retrieved chat history",
+            session_id=context.session_id,
+            chat_count=len(chats),
+        )
 
         item_id = await self._get_current_item_id()
         if item_id:
             item = await self._db.items.find_one({"productId": item_id})
-            logger.info("Found target item", item_id=item_id, item_found=item is not None)
+            logger.info(
+                "Found target item", item_id=item_id, item_found=item is not None
+            )
 
         if self._token:
             logger.info("Attempting to build config with token")
             if config := await build_config(self._token, self._db):
                 if reply := config["reply"]["template"]:
-                    logger.info("Sending reply using template", template_length=len(reply))
+                    logger.info(
+                        "Sending reply using template", template_length=len(reply)
+                    )
                     await self.send_message(str(context.sender), reply)
         else:
             logger.warning("No token available, skipping reply template")
@@ -147,7 +163,7 @@ class GoofishIM(LoginHelper):
                 break
 
             logger.debug("Processing task", task_type=task.type_)
-            
+
             match task.type_:
                 case IMTaskType.SLEEP:
                     logger.info(
@@ -183,7 +199,9 @@ class GoofishIM(LoginHelper):
             .sort("timeStamp", 1)
             .to_list()
         )
-        logger.debug("Chat history retrieved", session_id=session_id, message_count=len(chats))
+        logger.debug(
+            "Chat history retrieved", session_id=session_id, message_count=len(chats)
+        )
         return chats
 
     async def _users(self):
@@ -199,7 +217,7 @@ class GoofishIM(LoginHelper):
         logger.info("Clicking all users", limit=limits)
         users = await self._users()
         user_count = min(len(users), limits)
-        
+
         logger.debug(f"Will click {user_count} users")
         for i, user in enumerate(users[:user_count]):
             logger.debug(f"Clicking user {i+1}/{user_count}")
@@ -220,7 +238,7 @@ class GoofishIM(LoginHelper):
 
             current_id = await self._get_current_userid()
             if current_id == userId:
-                logger.info("User found", user_id=userId, position=i+1)
+                logger.info("User found", user_id=userId, position=i + 1)
                 return
 
         logger.error("User not found", user_id=userId)
@@ -236,11 +254,13 @@ class GoofishIM(LoginHelper):
                 "timeStamp": message["message"]["timeStamp"],
                 "content": message["message"]["reminder"]["content"],
             }
-            
-            logger.debug("Message received", 
-                       session_id=chat["sessionId"], 
-                       sender_id=chat["senderId"],
-                       is_my_message=chat["isMyMsg"])
+
+            logger.debug(
+                "Message received",
+                session_id=chat["sessionId"],
+                sender_id=chat["senderId"],
+                is_my_message=chat["isMyMsg"],
+            )
 
             existing_message = await self._db.chats.find_one(
                 {
@@ -249,23 +269,25 @@ class GoofishIM(LoginHelper):
                     "messageId": chat["messageId"],
                 }
             )
-            
+
             if existing_message:
                 # logger.debug("Message already exists in database, skipping", message_id=chat["messageId"])
                 return
 
             if self._initialized_users and not chat["isMyMsg"]:
                 self._received.add((chat["sessionId"], chat["senderId"]))
-                logger.info("Added message to received queue", 
-                           session_id=chat["sessionId"], 
-                           sender_id=chat["senderId"])
+                logger.info(
+                    "Added message to received queue",
+                    session_id=chat["sessionId"],
+                    sender_id=chat["senderId"],
+                )
 
             await self._db.chats.update_one(
                 {"sessionId": chat["sessionId"], "messageId": chat["messageId"]},
                 {"$set": chat},
                 upsert=True,
             )
-            # logger.info("Saved new message to database", 
+            # logger.info("Saved new message to database",
             #            session_id=chat["sessionId"],
             #            sender_id=chat["senderId"],
             #            message_id=chat["messageId"],
@@ -310,7 +332,7 @@ class GoofishIM(LoginHelper):
                 return None
 
             prefix = "https://www.goofish.com/personal?userId="
-            user_id = url[len(prefix):]
+            user_id = url[len(prefix) :]
             logger.debug("Current user ID", user_id=user_id)
             return user_id
         except Exception as e:
@@ -335,3 +357,21 @@ class GoofishIM(LoginHelper):
         except Exception as e:
             logger.warning("Failed to get current item ID", error=str(e))
             return None
+
+    async def _login_state(self):
+        if await self._page.locator("[class^='nick-']").text_content() == "登录":
+            return LoginState.UNLOGINED
+        else:
+            return LoginState.LOGINED
+
+    async def _check_login_state(self):
+        logger.info("Checking login state")
+        while True:
+            state = await self._login_state()
+            if state == LoginState.UNLOGINED:
+                logger.warning("User is not logged in")
+
+                break
+            else:
+                logger.info("User is logged in")
+            await asyncio.sleep(10)
