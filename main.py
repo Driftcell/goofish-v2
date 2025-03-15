@@ -27,29 +27,29 @@ async def main():
     )
 
     async with async_playwright() as p:
-        loginHelper = AgisoLoginHelper(
+        loginHelper = GoofishLoginHelper(
             playwright=p,
         )
 
-        with open("cookies/agiso.json") as f:
-            cookies = json.load(f)
+        # with open("cookies/goofish.json") as f:
+        #     cookies = json.load(f)
 
-        cookies = cookies["cookies"]
+        # cookies = cookies["cookies"]
 
-        await loginHelper.init(cookies=cookies)
+        await loginHelper.init()
         # await loginHelper.login("cookies/agiso.json")
 
         while await loginHelper.check_login_state() != LoginState.LOGINED:
             await asyncio.sleep(1)
 
-        await loginHelper.save_cookies("cookies/agiso.json")
+        await loginHelper.save_cookies("cookies/goofish.json")
 
-        cookies = await loginHelper.get_cookies()
-        cookies = [{"name": cookie.get("name"), "value": cookie.get("value")} for cookie in cookies]
-        api = AgisoApi(cookies=cookies, token=await loginHelper.get_token(), minio=minio_client)
+        # cookies = await loginHelper.get_cookies()
+        # cookies = [{"name": cookie.get("name"), "value": cookie.get("value")} for cookie in cookies]
+        # api = AgisoApi(cookies=cookies, token=await loginHelper.get_token(), minio=minio_client)
 
-        item = await MongoDB.get_db().items.find_one()
-        await api.upload_item(item)
+        # item = await MongoDB.get_db().items.find_one()
+        # await api.upload_item(item)
 
         # await loginHelper.init(headless=False, cookies=cookies)
 

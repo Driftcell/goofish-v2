@@ -3,14 +3,19 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from .depends import get_db
+from .depends import get_db, get_token
+from .task import tasks
 from .types import Config, ConfigT, MyResponse
 
 router = APIRouter(tags=["config"])
 
 
 @router.get("/config/{name}", response_model=MyResponse[Any])
-async def g_config(name: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+async def g_config(
+    name: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    token: str = Depends(get_token),
+):
     config = await db.configs.find_one({"name": name})
 
     presets = ["filter", "configt", "template", "description", "reply", "report"]
@@ -26,6 +31,7 @@ async def g_config(name: str, db: AsyncIOMotorDatabase = Depends(get_db)):
             case "filter":
                 await db.configs.insert_one(
                     {
+                        "token": token,
                         "name": "filter",
                         "value": {
                             "keywords_filter_enabled": False,
@@ -36,6 +42,7 @@ async def g_config(name: str, db: AsyncIOMotorDatabase = Depends(get_db)):
             case "configt":
                 await db.configs.insert_one(
                     {
+                        "token": token,
                         "name": "configt",
                         "value": {
                             "time_delta": "3000",
@@ -48,6 +55,7 @@ async def g_config(name: str, db: AsyncIOMotorDatabase = Depends(get_db)):
             case "template":
                 await db.configs.insert_one(
                     {
+                        "token": token,
                         "name": "template",
                         "value": {"template": ""},
                     }
@@ -55,6 +63,7 @@ async def g_config(name: str, db: AsyncIOMotorDatabase = Depends(get_db)):
             case "description":
                 await db.configs.insert_one(
                     {
+                        "token": token,
                         "name": "description",
                         "value": {"template": ""},
                     }
@@ -62,6 +71,7 @@ async def g_config(name: str, db: AsyncIOMotorDatabase = Depends(get_db)):
             case "reply":
                 await db.configs.insert_one(
                     {
+                        "token": token,
                         "name": "reply",
                         "value": {"template": ""},
                     }
@@ -69,44 +79,74 @@ async def g_config(name: str, db: AsyncIOMotorDatabase = Depends(get_db)):
             case "report":
                 await db.configs.insert_one(
                     {
+                        "token": token,
                         "name": "report",
                         "value": {"email": ""},
                     }
                 )
 
-        config = await db.configs.find_one({"name": name})
+        config = await db.configs.find_one(
+            {
+                "name": name,
+                "token": token,
+            }
+        )
         assert config is not None
         return MyResponse(data=config.get("value"))
 
 
 @router.post("/config")
-async def p_config(config: Config, db: AsyncIOMotorDatabase = Depends(get_db)):
+async def p_config(
+    config: Config,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    token: str = Depends(get_token),
+):
     await db.configs.update_one(
-        {"name": config.name}, update={"$set": {"value": config.value}}, upsert=True
+        {"name": config.name, "token": token},
+        update={"$set": {"value": config.value, "token": token}},
+        upsert=True,
     )
 
     return {"code": 0, "message": "Updated"}
 
 
 @router.post("/configt")
-async def p_configt(config: ConfigT, db: AsyncIOMotorDatabase = Depends(get_db)):
-    result = await db.configs.update_one(
-        {"name": "configt"}, {"$set": {"value": config.model_dump()}}, upsert=True
+async def p_configt(
+    config: ConfigT,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    token: str = Depends(get_token),
+):
+    await db.configs.update_one(
+        {"name": "configt", "token": token},
+        {"$set": {"value": config.model_dump(), "token": token}},
+        upsert=True,
     )
 
     return {"code": 0, "message": "ok"}
 
 
 @router.get("/configt", response_model=MyResponse[ConfigT])
-async def g_configt(db: AsyncIOMotorDatabase = Depends(get_db)):
-    config = await db.configs.find_one({"name": "configt"})
+async def g_configt(
+    db: AsyncIOMotorDatabase = Depends(get_db), token: str = Depends(get_token)
+):
+    config = await db.configs.find_one({"name": "configt", "token": token})
     if not config:
         await db.configs.update_one(
             {"name": "configt"},
-            {"$set": {"value": ConfigT().model_dump()}},
+            {
+                "$set": {
+                    "value": ConfigT().model_dump(),
+                    "token": token,
+                }
+            },
             upsert=True,
         )
-        config = await db.configs.find_one({"name": "configt"})
+        config = await db.configs.find_one(
+            {
+                "name": "configt",
+                "token": token,
+            }
+        )
         assert config is not None
 
     config = config["value"]

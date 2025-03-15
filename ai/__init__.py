@@ -1,6 +1,7 @@
 import os
 import re
 from hashlib import md5
+from tkinter import N
 
 import structlog
 from aiocache import cached
@@ -39,13 +40,20 @@ class AIUtils:
                 return token
 
     @staticmethod
-    async def generate_title(title: str, description: str, price: float):
+    async def generate_title(
+        title: str, description: str, price: float, *, template_text: str | None = None
+    ):
         token = await AIUtils._get_access_token()
         url = os.getenv("BAIDU_API_URL") + token
-        template = Template(MongoDB.get_db())
-        prompt = await template.get("prompt")
 
-        prompt = prompt.format(title=title, description=description, price=price)
+        if template_text is None:
+            template = Template(MongoDB.get_db())
+            prompt = await template.get("prompt")
+            prompt = prompt.format(title=title, description=description, price=price)
+        else:
+            prompt = template_text.format(
+                title=title, description=description, price=price
+            )
 
         data = {"messages": [{"role": "user", "content": prompt}]}
 
@@ -60,7 +68,7 @@ class GoodsManager:
     def __init__(self, db: AsyncIOMotorDatabase) -> None:
         self._db = db
 
-    async def merge_all(self):
+    async def merge_all(self, *, template: str | None = None):
         pipeline = [
             {
                 "$group": {
@@ -96,7 +104,10 @@ class GoodsManager:
 
             try:
                 title = await AIUtils.generate_title(
-                    title=subName, description=copywriterInfo, price=price
+                    title=subName,
+                    description=copywriterInfo,
+                    price=price,
+                    template_text=template,
                 )
             except Exception as e:
                 logger.warn(f"Failed to generate title due to {e}")

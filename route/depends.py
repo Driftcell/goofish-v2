@@ -7,10 +7,17 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from db import MongoDB
 
 
-def get_token(request: Request) -> str:
+async def get_token(request: Request) -> str:
     token = getattr(request.state, "token", None)
     if token is None:
         raise HTTPException(status_code=401, detail="X-TOKEN header missing")
+    
+    db = await get_db()
+    
+    user = await db.users.find_one({"token": token})
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
     return token
 
 

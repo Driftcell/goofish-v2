@@ -21,14 +21,14 @@ class Config(BaseModel):
 
 class Price(BaseModel):
     mode: str = "fixed"
-    value: Optional[str] = None
+    value: Optional[str] = "0.01"
 
 
 class ConfigT(BaseModel):
-    time_delta: str = ""
-    item_limits: str = ""
+    time_delta: str = "60"
+    item_limits: str = "3000"
     price: Price = Price()
-    item_type: str = ""
+    item_type: str = "家居/服务/跑腿代办/酒店代订"
 
 class Upload(BaseModel):
     bucket_name: str

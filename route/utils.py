@@ -1,5 +1,6 @@
 from typing import Literal
 
+from motor.motor_asyncio import AsyncIOMotorDatabase
 from playwright.async_api import async_playwright
 
 from helpers.agiso import AgisoLoginHelper
@@ -8,7 +9,19 @@ from helpers.ctrip import CtripLoginHelper
 from helpers.goofish import GoofishLoginHelper
 
 
-async def check_login(platform: Literal["goofish", "agiso", "ctrip"], cookies) -> bool:
+async def build_config(token: str, db: AsyncIOMotorDatabase):
+    config = db.configs.find({"token": token})
+    built_config = {}
+
+    async for item in config:
+        built_config[item["name"]] = item["value"]
+
+    return built_config
+
+
+async def check_login(
+    platform: Literal["goofish", "agiso", "ctrip"], cookies, *, headless=False
+) -> bool:
     async with async_playwright() as p:
         match platform:
             case "goofish":
@@ -23,5 +36,5 @@ async def check_login(platform: Literal["goofish", "agiso", "ctrip"], cookies) -
             case _:
                 raise ValueError("Unsupported platform")
 
-        await loginHelper.init(cookies=cookies)
+        await loginHelper.init(cookies=cookies, headless=headless)
         return await loginHelper.check_login_state() == LoginState.LOGINED

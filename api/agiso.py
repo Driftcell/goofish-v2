@@ -1,6 +1,7 @@
 import os
 from hashlib import md5
 from pathlib import Path
+from typing import Literal
 
 import aiofiles
 import aiohttp
@@ -89,7 +90,15 @@ class AgisoApi:
 
                 return data["data"]["data"]
 
-    async def upload_item(self, item, *, draft=False):
+    async def upload_item(
+        self,
+        item,
+        *,
+        draft=False,
+        price_mode=Literal["fixed", "smart"],
+        price=0.01,
+        template: str | None = None,
+    ):
         imgs = []
         for image in item["imgList"]:
             try:
@@ -116,6 +125,17 @@ class AgisoApi:
             logger.warn("Failed to upload any images, skip.")
             return
 
+        if template:
+            goods_content_without_link = [
+                f"{short_url['description']}" for short_url in item["shortUrls"]
+            ]
+            template.format(
+                goods_information=item["copywriterInfo"],
+                goods_content_without_link="\n".join(goods_content_without_link),
+            )
+        else:
+            template = item.get("copywriterInfo", "")
+
         body = {
             "itemBizType": 2,
             "goodsType": [
@@ -130,10 +150,10 @@ class AgisoApi:
             "pvList": [],
             "virtual": True,
             "title": item.get("title") or item.get("subName"),
-            "desc": item.get("copywriterInfo", ""),
+            "desc": template,
             "divisionIdList": ["110000", "110100", "110101"],
             "freeShipping": True,
-            "reservePrice": 0.01,
+            "reservePrice": price if price_mode == "fixed" else item["price"],
             "originalPrice": item.get("price") or 0.01,
             "quantity": 1,
             "outerId": item.get("productId"),

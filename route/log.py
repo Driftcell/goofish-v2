@@ -9,7 +9,7 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 console_renderer = ConsoleRenderer()
 connected_clients = set()
 
-router = APIRouter(tags=['log'])
+router = APIRouter(tags=["log"])
 
 
 def sse_processor(logger, method_name, event_dict):
@@ -51,3 +51,8 @@ async def get_logs():
 @router.get("/logs/test")
 async def test_logs():
     logger.info("test!")
+
+
+@router.get("/error")
+async def error():
+    raise Exception("This is a test exception")
