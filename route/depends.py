@@ -25,8 +25,9 @@ async def get_token(request: Request) -> str:
     user = await db.users.find_one({"token": token})
     if not user:
         raise HTTPException(status_code=401, detail="Invalid token")
-    
+
     if user.get("expired", False):
+        await db.users.delete_one({"token": token})
         raise HTTPException(status_code=401, detail="Token expired")
 
     config = await build_config(token, db)
@@ -59,7 +60,11 @@ async def get_token(request: Request) -> str:
         # If a task with this ID already exists, remove it first
         if scheduler.get_job(task_id):
             scheduler.remove_job(task_id)
-            logger.info("Removing existing task before creating new one", token=token, task_id=task_id)
+            logger.info(
+                "Removing existing task before creating new one",
+                token=token,
+                task_id=task_id,
+            )
 
         # Schedule a new task with the current time_delta
         scheduler.add_job(
@@ -71,10 +76,10 @@ async def get_token(request: Request) -> str:
         )
 
         logger.info(
-            "Created new scheduled task", 
-            token=token, 
-            task_id=task_id, 
-            time_delta=time_delta
+            "Created new scheduled task",
+            token=token,
+            task_id=task_id,
+            time_delta=time_delta,
         )
 
         # Store the current time_delta and config hash with the task for later comparison
@@ -91,7 +96,9 @@ async def get_token(request: Request) -> str:
             new_time_delta = int(config["configt"]["time_delta"])
             if new_time_delta != tasks[token].time_delta:
                 config_changed = True
-                change_reasons.append(f"time_delta changed from {tasks[token].time_delta} to {new_time_delta}")
+                change_reasons.append(
+                    f"time_delta changed from {tasks[token].time_delta} to {new_time_delta}"
+                )
 
         # Check if overall config changed by comparing hashes
         if (
@@ -104,11 +111,11 @@ async def get_token(request: Request) -> str:
         # If config changed, recreate the task
         if config_changed:
             logger.info(
-                "Configuration changed, updating task", 
-                token=token, 
-                reasons=change_reasons
+                "Configuration changed, updating task",
+                token=token,
+                reasons=change_reasons,
             )
-            
+
             # Create a new task function with updated config
             task_function = create_task_for_token(token)
             tasks[token] = task_function
@@ -127,12 +134,12 @@ async def get_token(request: Request) -> str:
                 id=task_id,
                 replace_existing=True,
             )
-            
+
             logger.info(
-                "Task updated with new configuration", 
-                token=token, 
+                "Task updated with new configuration",
+                token=token,
                 task_id=task_id,
-                time_delta=time_delta
+                time_delta=time_delta,
             )
 
             # Update stored values
