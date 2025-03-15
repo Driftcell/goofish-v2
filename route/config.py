@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from .depends import get_db, get_token
-from .task import tasks
 from .types import Config, ConfigT, MyResponse
 
 router = APIRouter(tags=["config"])
@@ -57,7 +56,9 @@ async def g_config(
                     {
                         "token": token,
                         "name": "template",
-                        "value": {"template": ""},
+                        "value": {
+                            "template": "根据要求和信息，写一句话。\n# 使用短句。\n# 直接回答，不要出现其他话。\n# 先突出价格，向下取整。有多天的价格就把价格算成一天的。\n# 再突出地点。\n# 然后有品牌突出品牌。\n少于20个字\n####信息####\n{title}\n{description}\n{price}元\n##例子##\n600悦榕庄！九寨沟悦榕庄！送餐饮!行政酒廊！\n400五星级套房！成都上层名人酒店!"
+                        },
                     }
                 )
             case "description":
@@ -65,7 +66,7 @@ async def g_config(
                     {
                         "token": token,
                         "name": "description",
-                        "value": {"template": ""},
+                        "value": {"template": "{goods_information}"},
                     }
                 )
             case "reply":
@@ -81,7 +82,7 @@ async def g_config(
                     {
                         "token": token,
                         "name": "report",
-                        "value": {"email": ""},
+                        "value": {"email": "3392677391@qq.com"},
                     }
                 )
 

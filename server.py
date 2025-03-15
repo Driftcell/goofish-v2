@@ -1,8 +1,9 @@
 import dotenv
 
 dotenv.load_dotenv()
+
+
 import structlog
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -47,7 +48,3 @@ app.include_router(ConfigRouter)
 app.include_router(AuthRouter)
 app.include_router(ItemRouter)
 app.include_router(UploadRouter)
-
-scheduler = AsyncIOScheduler()
-scheduler.start()
-logger.info("Scheduler started")

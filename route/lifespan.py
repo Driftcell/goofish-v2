@@ -5,8 +5,7 @@ from fastapi import FastAPI
 
 from db import MongoDB
 
-from .log import sse_processor
-
+from .sche import init_scheduler
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -15,4 +14,5 @@ async def lifespan(app: FastAPI):
     assert MONGO_URI is not None and MONGO_DB is not None
 
     MongoDB(MONGO_URI, MONGO_DB)
+    init_scheduler()
     yield

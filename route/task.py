@@ -1,22 +1,42 @@
-from itertools import product
-
 import structlog
 from minio import Minio
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from playwright.async_api import async_playwright
 
 from ai import GoodsManager
-from api import agiso, ctrip
 from api.agiso import AgisoApi
 from api.ctrip import CtripApi
+from db import MongoDB
 from helpers.agiso import AgisoLoginHelper
 from helpers.ctrip import CtripLoginHelper
 
-from .utils import check_login
+from .utils import build_config, check_login
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
+# Dictionary to store token-specific task functions
 tasks = {}
+
+
+# Function to create a task for a specific token
+def create_task_for_token(token: str):
+    async def task_function():
+        # Get database and minio client
+        db = MongoDB.get_db()
+
+        from .depends import get_minio
+
+        minio = await get_minio()
+
+        # Build config for the token
+        config = await build_config(token, db)
+
+        # Run the main function with the token, config, database and minio
+        await run(token, config, db, minio)
+
+    # Return the task function
+    return task_function
+
 
 async def run(token: str, config, db: AsyncIOMotorDatabase, minio: Minio):
     user = await db.users.find_one({"token": token})
@@ -24,8 +44,8 @@ async def run(token: str, config, db: AsyncIOMotorDatabase, minio: Minio):
     if not user:
         raise ValueError("User not found")
 
-    ctrip_cookies = user["ctrip"]
-    agiso_cookies = user["agiso"]
+    ctrip_cookies = user["ctrip"]['cookies']
+    agiso_cookies = user["goofish"]['cookies']
 
     if not await check_login(platform="ctrip", cookies=ctrip_cookies):
         raise ValueError("User not logged in")
@@ -84,7 +104,7 @@ async def run(token: str, config, db: AsyncIOMotorDatabase, minio: Minio):
         if item["productId"] in uploaded_set:
             logger.info(f"Already uploaded, skip", productId=item["productId"])
             continue
-        
+
         # 应用过滤器
         filters = item["filter"]["keywords_filter"]
         if item["filter"]["keywords_filter_enabled"] and filters:
