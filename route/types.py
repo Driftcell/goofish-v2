@@ -4,6 +4,10 @@ from pydantic import BaseModel
 
 T = TypeVar("T")
 
+class ErrorResponse(BaseModel):
+    code: int = 1
+    message: str = "error"
+    data: Optional[Any] = None
 
 class MyResponse(BaseModel, Generic[T]):
     code: int = 0
