@@ -137,19 +137,34 @@ class GoofishIM(LoginHelper):
         )
 
         item_id = await self._get_current_item_id()
-        if item_id:
-            item = await self._db.items.find_one({"productId": item_id})
+        format_set = {
+            "information": "",
+            "information_without_url": "",
+        }
+        if item_id and (item := await self._db.items.find_one({"productId": item_id})):
             logger.info(
                 "Found target item", item_id=item_id, item_found=item is not None
+            )
+            format_set["information"] = "\n".join(
+                [
+                    f"{short_url['description']}\n{short_url['shortUrl']}"
+                    for short_url in item["shortUrls"]
+                ]
+            )
+            format_set["information_without_url"] = "\n".join(
+                [f"{short_url['description']}" for short_url in item["shortUrls"]]
             )
 
         if self._token:
             logger.info("Attempting to build config with token")
             if config := await build_config(self._token, self._db):
                 if reply := config["reply"]["template"]:
-                    logger.info(
-                        "Sending reply using template", template_length=len(reply)
+                    assert isinstance(reply, str)
+                    reply = reply.format(
+                        information=format_set["information"],
+                        information_without_url=format_set["information_without_url"],
                     )
+                    logger.info("Sending reply using template", reply=reply)
                     await self.send_message(str(context.sender), reply)
         else:
             logger.warning("No token available, skipping reply template")
