@@ -371,7 +371,9 @@ class GoofishIM(LoginHelper):
             if state == LoginState.UNLOGINED:
                 logger.warning("User is not logged in")
 
+                await self._db.users.update_one(
+                    {"token": self._token}, {"$set": {"expired": True}}
+                )
+
                 break
-            else:
-                logger.info("User is logged in")
             await asyncio.sleep(10)
