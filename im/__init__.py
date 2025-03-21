@@ -265,6 +265,7 @@ class GoofishIM(LoginHelper):
             logger.debug(f"Checking user {i+1}/{len(users)}")
             await user.click()
             await self._page.wait_for_load_state("networkidle")
+            await self._page.wait_for_load_state("domcontentloaded")
 
             current_id = await self._get_current_userid()
             if current_id == userId:
