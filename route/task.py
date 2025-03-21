@@ -128,14 +128,18 @@ async def run(token: str, config, db: AsyncIOMotorDatabase, minio: Minio):
             continue
 
         # 应用过滤器
-        filters = config["filter"]["keywords_filter"]
-        if config["filter"]["keywords_filter_enabled"] and filters:
-            for keyword in filters:
-                if keyword in item["subName"] + item["copywriterInfo"] + item["title"]:
-                    logger.info(
-                        f"Product name match filter, skip", productId=item["productId"]
-                    )
-                    break
+        if config["filter"]["keywords_filter_enabled"]:
+            if filters := config["filter"]["keywords_filter"]:
+                for keyword in filters:
+                    if (
+                        keyword
+                        in item["subName"] + item["copywriterInfo"] + item["title"]
+                    ):
+                        logger.info(
+                            f"Product name match filter, skip",
+                            productId=item["productId"],
+                        )
+                        break
 
         # 应用价格过滤器
         limits = int(config["configt"]["item_limits"])
@@ -166,45 +170,43 @@ async def create_im_task(token: str, user: Dict[str, Any], db: AsyncIOMotorDatab
     if token in im_tasks and im_tasks[token].get("running"):
         logger.debug(f"IM task already exists for token", token=token)
         return
-    
+
     logger.info(f"Creating new IM task for user", token=token)
-    
-    im_tasks[token] = {
-        "task": None,
-        "running": False,
-        "last_check": None
-    }
-    
+
+    im_tasks[token] = {"task": None, "running": False, "last_check": None}
+
     async def im_task_runner():
         logger.info(f"Starting IM task for user", token=token)
         im_tasks[token]["running"] = True
-        
+
         try:
             cookies = user["goofish"]["cookies"]
-            
+
             async with async_playwright() as p:
                 im_client = GoofishIM(db=db, playwright=p, cookies=cookies, token=token)
                 await im_client.init(cookies=cookies)
                 await asyncio.sleep(5)
                 await im_client.start()
-                
+
                 # Keep the task running indefinitely
                 while True:
                     await asyncio.sleep(60)  # Sleep for 1 minute
-                    
+
                     # Check if user is still valid
                     current_user = await db.users.find_one({"token": token})
                     if not current_user or current_user.get("expired", False):
-                        logger.info(f"User expired or not found, stopping IM task", token=token)
+                        logger.info(
+                            f"User expired or not found, stopping IM task", token=token
+                        )
                         break
-                
+
                 await im_client.stop()
-                
+
         except Exception as e:
             logger.exception(f"Error in IM task", token=token, error=str(e))
         finally:
             im_tasks[token]["running"] = False
-    
+
     # Create the task but don't await it
     im_tasks[token]["task"] = asyncio.create_task(im_task_runner())
     return im_tasks[token]["task"]
@@ -213,28 +215,28 @@ async def create_im_task(token: str, user: Dict[str, Any], db: AsyncIOMotorDatab
 async def check_and_create_im_tasks():
     """Check for non-expired users and create IM tasks for them"""
     # logger.info("Checking for non-expired users to create IM tasks")
-    
+
     db = MongoDB.get_db()
     users = await db.users.find({"expired": False}).to_list()
-    
+
     for user in users:
         token = user.get("token")
         if not token:
             continue
-            
+
         await create_im_task(token, user, db)
-    
+
     # logger.info(f"IM task check completed, active tasks: {sum(1 for t in im_tasks.values() if t.get('running'))}")
 
 
 async def start_im_task_scheduler():
     """Start the scheduler that runs check_and_create_im_tasks every minute"""
     logger.info("Starting IM task scheduler")
-    
+
     while True:
         try:
             await check_and_create_im_tasks()
         except Exception as e:
             logger.exception("Error checking IM tasks", error=str(e))
-            
+
         await asyncio.sleep(5)  # Run every minute
