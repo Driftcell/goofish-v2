@@ -4,6 +4,7 @@ from .item import router as ItemRouter
 from .log import router as LogRouter
 from .upload import router as UploadRouter
 from .types import Config, ConfigT, Item, MyResponse, Price, ShortUrl, Upload
+from .utils import build_config
 
 __all__ = [
     "Config",
@@ -17,4 +18,5 @@ __all__ = [
     "ConfigRouter",
     "AuthRouter",
     "ItemRouter",
+    "build_config"
 ]

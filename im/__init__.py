@@ -8,7 +8,6 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from playwright.async_api import Playwright, Route
 
 from helpers.base import LoginHelper, LoginState
-from route.utils import build_config
 
 from .types import IMContext, IMTask, IMTaskType
 
@@ -83,6 +82,15 @@ class GoofishIM(LoginHelper):
         await self._locate_user(userId)
         await self._page.locator("input[type=file]").set_input_files(image)
         logger.info("Image sent successfully", user_id=userId, image_path=image)
+
+    async def build_config(self):
+        config = self._db.configs.find({"token": self._token})
+        built_config = {}
+
+        async for item in config:
+            built_config[item["name"]] = item["value"]
+
+        return built_config
 
     async def _on_received(self):
         logger.info("Starting message reception monitoring loop")
@@ -159,7 +167,7 @@ class GoofishIM(LoginHelper):
 
         if self._token:
             logger.info("Attempting to build config with token")
-            if config := await build_config(self._token, self._db):
+            if config := await self.build_config():
                 if reply := config["reply"]["template"]:
                     assert isinstance(reply, str)
                     reply = reply.format(
@@ -241,6 +249,11 @@ class GoofishIM(LoginHelper):
             await user.click()
             await self._page.wait_for_load_state("networkidle")
             await self._page.wait_for_load_state("domcontentloaded")
+            logger.info(
+                "User clicked successfully",
+                user_id=await self._get_current_userid(),
+                item_id=await self._get_current_item_id(),
+            )
             await asyncio.sleep(1)
         logger.info("Finished clicking all users", clicked_count=user_count)
 
