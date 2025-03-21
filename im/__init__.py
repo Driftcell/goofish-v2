@@ -143,7 +143,7 @@ class GoofishIM(LoginHelper):
             session_id=context.session_id,
             chat_count=len(chats),
         )
-
+        await self._locate_user(str(context.sender))
         item_id = await self._get_current_item_id()
         format_set = {
             "information": "",
