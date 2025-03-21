@@ -154,6 +154,8 @@ class GoofishIM(LoginHelper):
             format_set["information_without_url"] = "\n".join(
                 [f"{short_url['description']}" for short_url in item["shortUrls"]]
             )
+        else:
+            logger.warning("No item found for the current ID", item_id=item_id)
 
         if self._token:
             logger.info("Attempting to build config with token")

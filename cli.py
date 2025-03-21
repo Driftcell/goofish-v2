@@ -40,6 +40,7 @@ async def goofish():
             playwright=p,
         )
         await loginHelper.init()
+        await loginHelper.login()
 
         logger.info("Waiting for user to login")
         while await loginHelper.check_login_state() != LoginState.LOGINED:
