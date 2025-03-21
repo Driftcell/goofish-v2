@@ -149,7 +149,7 @@ class GoofishIM(LoginHelper):
             "information": "",
             "information_without_url": "",
         }
-        if item_id and (item := await self._db.items.find_one({"productId": item_id})):
+        if item_id and (item := await self._db.items.find_one({"itemId": item_id})):
             logger.info(
                 "Found target item", item_id=item_id, item_found=item is not None
             )

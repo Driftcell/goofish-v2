@@ -1,9 +1,10 @@
+import asyncio
+from typing import Any, Dict
+
 import structlog
 from minio import Minio
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from playwright.async_api import async_playwright
-import asyncio
-from typing import Dict, Any
 
 from ai import GoodsManager
 from api.agiso import AgisoApi
@@ -163,6 +164,16 @@ async def run(token: str, config, db: AsyncIOMotorDatabase, minio: Minio):
                 productId=item["productId"],
                 error=str(e),
             )
+
+        # 建立itemId和outerId的绑定
+        items = await agiso_api.search_good_list()
+        for item in items:
+            db_item = await db.items.find_one({"productId": item["outerGoodsId"]})
+            if db_item:
+                await db.items.update_one(
+                    {"productId": item["outerGoodsId"]},
+                    {"$set": {"itemId": item["goodsId"]}},
+                )
 
 
 async def create_im_task(token: str, user: Dict[str, Any], db: AsyncIOMotorDatabase):
