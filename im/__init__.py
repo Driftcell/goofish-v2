@@ -285,12 +285,12 @@ class GoofishIM(LoginHelper):
                 "content": message["message"]["reminder"]["content"],
             }
 
-            logger.debug(
-                "Message received",
-                session_id=chat["sessionId"],
-                sender_id=chat["senderId"],
-                is_my_message=chat["isMyMsg"],
-            )
+            # logger.debug(
+            #     "Message received",
+            #     session_id=chat["sessionId"],
+            #     sender_id=chat["senderId"],
+            #     is_my_message=chat["isMyMsg"],
+            # )
 
             existing_message = await self._db.chats.find_one(
                 {

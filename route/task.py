@@ -212,7 +212,7 @@ async def create_im_task(token: str, user: Dict[str, Any], db: AsyncIOMotorDatab
 
 async def check_and_create_im_tasks():
     """Check for non-expired users and create IM tasks for them"""
-    logger.info("Checking for non-expired users to create IM tasks")
+    # logger.info("Checking for non-expired users to create IM tasks")
     
     db = MongoDB.get_db()
     users = await db.users.find({"expired": False}).to_list()
@@ -224,7 +224,7 @@ async def check_and_create_im_tasks():
             
         await create_im_task(token, user, db)
     
-    logger.info(f"IM task check completed, active tasks: {sum(1 for t in im_tasks.values() if t.get('running'))}")
+    # logger.info(f"IM task check completed, active tasks: {sum(1 for t in im_tasks.values() if t.get('running'))}")
 
 
 async def start_im_task_scheduler():
