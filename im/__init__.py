@@ -15,6 +15,11 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 
 class GoofishIM(LoginHelper):
+    """
+    咸鱼即时通讯客户端类。
+    
+    继承自LoginHelper类，用于管理咸鱼平台的即时通讯功能，包括消息收发、自动回复等。
+    """
     def __init__(
         self,
         db: AsyncIOMotorDatabase,
@@ -23,6 +28,15 @@ class GoofishIM(LoginHelper):
         *,
         token: str | None = None,
     ) -> None:
+        """
+        初始化咸鱼即时通讯客户端。
+        
+        参数:
+            db: MongoDB数据库连接
+            playwright: Playwright实例，用于浏览器自动化
+            cookies: 用户登录凭证cookie列表
+            token: 可选的用户标识令牌
+        """
         super().__init__(playwright)
         self._db = db
         self._cookies = cookies
@@ -33,6 +47,13 @@ class GoofishIM(LoginHelper):
         logger.info("GoofishIM instance created", token_provided=token is not None)
 
     async def init(self, headless: bool = False, *, cookies=None):
+        """
+        初始化浏览器环境和页面。
+        
+        参数:
+            headless: 是否使用无头模式运行浏览器
+            cookies: 可选的cookie列表，若提供则会覆盖实例化时的cookies
+        """
         logger.info("Initializing GoofishIM", headless=headless)
         await super().init(headless, cookies=cookies)
 
@@ -50,6 +71,11 @@ class GoofishIM(LoginHelper):
         logger.info("Navigation to Goofish IM complete")
 
     async def start(self):
+        """
+        启动咸鱼IM服务，开始监听和处理消息。
+        
+        创建任务执行器、消息接收处理器和登录状态检查器。
+        """
         logger.info("Starting GoofishIM service")
         await self._click_all_users()
         self._initialized_users = True
@@ -63,6 +89,11 @@ class GoofishIM(LoginHelper):
         )
 
     async def stop(self):
+        """
+        停止咸鱼IM服务，清理资源。
+        
+        终止任务队列处理、消息接收任务，并关闭浏览器。
+        """
         logger.info("Stopping GoofishIM service")
         await self._task_queue.put(None)
         self._on_received_task.cancel()
@@ -70,6 +101,13 @@ class GoofishIM(LoginHelper):
         logger.info("GoofishIM service stopping tasks completed")
 
     async def send_message(self, userId: str, message: str):
+        """
+        向特定用户发送文本消息。
+        
+        参数:
+            userId: 接收消息的用户ID
+            message: 要发送的文本消息
+        """
         logger.info("Sending message", user_id=userId, message_length=len(message))
         locator = "#content > div > div > main > div.sendbox--A9eGQCY5 > div.sendbox-bottom--O2c5fyIe > button"
         await self._locate_user(userId)
@@ -78,12 +116,27 @@ class GoofishIM(LoginHelper):
         logger.info("Message sent successfully", user_id=userId)
 
     async def send_image(self, userId: str, image: str):
+        """
+        向特定用户发送图片。
+        
+        参数:
+            userId: 接收图片的用户ID
+            image: 图片文件的路径
+        """
         logger.info("Sending image", user_id=userId, image_path=image)
         await self._locate_user(userId)
         await self._page.locator("input[type=file]").set_input_files(image)
         logger.info("Image sent successfully", user_id=userId, image_path=image)
 
     async def build_config(self):
+        """
+        从数据库构建配置对象。
+        
+        根据当前token从数据库获取配置项。
+        
+        返回:
+            dict: 包含配置项的字典
+        """
         config = self._db.configs.find({"token": self._token})
         built_config = {}
 
@@ -93,6 +146,11 @@ class GoofishIM(LoginHelper):
         return built_config
 
     async def _on_received(self):
+        """
+        消息接收监控循环。
+        
+        周期性检查接收到的消息并为其创建响应任务。
+        """
         logger.info("Starting message reception monitoring loop")
         while True:
             logger.debug(f"Processing {len(self._received)} received messages")
@@ -121,6 +179,12 @@ class GoofishIM(LoginHelper):
             await asyncio.sleep(30)
 
     async def _sleep_task(self, context: IMContext):
+        """
+        执行休眠任务。
+        
+        参数:
+            context: 包含休眠时间和后续任务的上下文对象
+        """
         assert context.sleep is not None
         assert context.next_task is not None
 
@@ -133,6 +197,14 @@ class GoofishIM(LoginHelper):
         await self._task_queue.put(context.next_task)
 
     async def _ai_model_task(self, context: IMContext):
+        """
+        执行AI模型任务，根据配置模板生成回复。
+        
+        获取会话历史，查找商品信息，并根据模板生成回复。
+        
+        参数:
+            context: 包含会话ID和发送者ID的上下文对象
+        """
         assert context.session_id is not None
 
         logger.info("Processing AI model task", session_id=context.session_id)
@@ -180,6 +252,11 @@ class GoofishIM(LoginHelper):
             logger.warning("No token available, skipping reply template")
 
     async def _task_executor(self):
+        """
+        任务执行器，从任务队列获取并执行任务。
+        
+        处理不同类型的任务，包括休眠、发送消息、发送图片和AI模型任务。
+        """
         logger.info("Task executor started")
         while True:
             task = await self._task_queue.get()
@@ -218,6 +295,15 @@ class GoofishIM(LoginHelper):
                     asyncio.create_task(self._ai_model_task(context=task.context))
 
     async def _chat_history(self, session_id: str):
+        """
+        获取指定会话的聊天历史记录。
+        
+        参数:
+            session_id: 会话ID
+            
+        返回:
+            list: 按时间戳排序的聊天记录列表
+        """
         logger.debug("Fetching chat history", session_id=session_id)
         chats = (
             await self._db.chats.find({"session_id": session_id})
@@ -230,6 +316,12 @@ class GoofishIM(LoginHelper):
         return chats
 
     async def _users(self):
+        """
+        获取当前聊天用户列表。
+        
+        返回:
+            list: 聊天用户元素列表
+        """
         logger.debug("Getting user list")
         locator = (
             "#conv-list-scrollable > div > div.rc-virtual-list-holder > div > div > *"
@@ -239,6 +331,12 @@ class GoofishIM(LoginHelper):
         return users
 
     async def _click_all_users(self, limits=5):
+        """
+        依次点击所有用户，加载对话内容。
+        
+        参数:
+            limits: 最大点击用户数量
+        """
         logger.info("Clicking all users", limit=limits)
         users = await self._users()
         user_count = min(len(users), limits)
@@ -258,6 +356,15 @@ class GoofishIM(LoginHelper):
         logger.info("Finished clicking all users", clicked_count=user_count)
 
     async def _locate_user(self, userId: str):
+        """
+        定位并点击指定ID的用户。
+        
+        参数:
+            userId: 要定位的用户ID
+            
+        异常:
+            Exception: 如果找不到指定用户
+        """
         logger.info("Locating user", user_id=userId)
         users = await self._users()
 
@@ -276,6 +383,14 @@ class GoofishIM(LoginHelper):
         raise Exception(f"User {userId} not found")
 
     async def _on_message(self, message):
+        """
+        处理接收到的消息回调函数。
+        
+        将消息保存到数据库，并将非自己发送的消息添加到待处理队列。
+        
+        参数:
+            message: 接收到的消息对象
+        """
         try:
             chat = {
                 "sessionId": message["message"]["sessionId"],
@@ -328,6 +443,14 @@ class GoofishIM(LoginHelper):
             logger.error("Error handling message", error=str(e), exc_info=True)
 
     async def _inject(self, route: Route):
+        """
+        注入JavaScript代码以捕获消息事件。
+        
+        修改原始JavaScript代码，添加消息监听函数。
+        
+        参数:
+            route: 浏览器路由请求
+        """
         logger.debug("Injecting JS", url=route.request.url)
         url = route.request.url
 
@@ -348,10 +471,15 @@ class GoofishIM(LoginHelper):
             logger.info("Injected modified JS successfully")
         except Exception as e:
             logger.error("Failed to inject JS", error=str(e), exc_info=True)
-            # Fall back to original behavior
             await route.continue_()
 
     async def _get_current_userid(self):
+        """
+        获取当前聊天窗口的用户ID。
+        
+        返回:
+            str|None: 当前用户ID或None（如未找到）
+        """
         try:
             logger.debug("Getting current user ID")
             url = await self._page.locator(
@@ -371,6 +499,12 @@ class GoofishIM(LoginHelper):
             return None
 
     async def _get_current_item_id(self):
+        """
+        获取当前聊天窗口关联的商品ID。
+        
+        返回:
+            str|None: 当前商品ID或None（如未找到）
+        """
         try:
             logger.debug("Getting current item ID")
             url = await self._page.locator(
@@ -390,12 +524,21 @@ class GoofishIM(LoginHelper):
             return None
 
     async def _login_state(self):
+        """
+        检查当前登录状态。
+        
+        返回:
+            LoginState: 登录状态枚举值
+        """
         if await self._page.locator("[class^='nick-']").text_content() == "登录":
             return LoginState.UNLOGINED
         else:
             return LoginState.LOGINED
 
     async def _check_login_state(self):
+        """
+        周期性检查登录状态，如未登录则更新数据库标记。
+        """
         logger.info("Checking login state")
         while True:
             state = await self._login_state()

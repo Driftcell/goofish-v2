@@ -28,6 +28,17 @@ im_tasks: Dict[str, Dict[str, Any]] = {}
 
 # Function to create a task for a specific token
 def create_task_for_token(token: str):
+    """
+    为特定token创建任务函数
+    
+    根据给定的token创建一个封装了任务逻辑的异步函数，该函数负责执行与token关联的全部操作。
+    
+    Args:
+        token (str): 用户认证令牌
+        
+    Returns:
+        callable: 返回一个异步函数，该函数执行与token关联的任务
+    """
     async def task_function():
         # Get database and minio client
         db = MongoDB.get_db()
@@ -47,6 +58,20 @@ def create_task_for_token(token: str):
 
 
 async def run(token: str, config, db: AsyncIOMotorDatabase, minio: Minio):
+    """
+    执行用户关联的主要任务
+    
+    根据用户配置，执行数据抓取、商品合并及上传操作的完整流程。
+    
+    Args:
+        token (str): 用户认证令牌
+        config (dict): 用户配置信息
+        db (AsyncIOMotorDatabase): 数据库连接
+        minio (Minio): MinIO客户端连接
+        
+    Raises:
+        ValueError: 当用户不存在或登录失效时抛出
+    """
     user = await db.users.find_one({"token": token})
 
     if not user:
@@ -177,7 +202,19 @@ async def run(token: str, config, db: AsyncIOMotorDatabase, minio: Minio):
 
 
 async def create_im_task(token: str, user: Dict[str, Any], db: AsyncIOMotorDatabase):
-    """Create an IM task for a user if it doesn't exist already"""
+    """
+    为用户创建即时通讯任务
+    
+    如果用户尚未创建即时通讯任务，则创建新任务以处理消息通知。
+    
+    Args:
+        token (str): 用户认证令牌
+        user (Dict[str, Any]): 用户信息字典
+        db (AsyncIOMotorDatabase): 数据库连接
+        
+    Returns:
+        Task: 如果创建了新任务则返回该任务对象，否则返回None
+    """
     if token in im_tasks and im_tasks[token].get("running"):
         logger.debug(f"IM task already exists for token", token=token)
         return
@@ -224,7 +261,14 @@ async def create_im_task(token: str, user: Dict[str, Any], db: AsyncIOMotorDatab
 
 
 async def check_and_create_im_tasks():
-    """Check for non-expired users and create IM tasks for them"""
+    """
+    检查并创建即时通讯任务
+    
+    检查所有未过期用户并为其创建即时通讯任务，如果任务尚未创建。
+    
+    Returns:
+        None: 此函数通过副作用工作，不返回值
+    """
     # logger.info("Checking for non-expired users to create IM tasks")
 
     db = MongoDB.get_db()
@@ -241,7 +285,14 @@ async def check_and_create_im_tasks():
 
 
 async def start_im_task_scheduler():
-    """Start the scheduler that runs check_and_create_im_tasks every minute"""
+    """
+    启动即时通讯任务调度器
+    
+    启动一个后台任务，定期检查并创建用户的即时通讯任务。
+    
+    Returns:
+        None: 此函数会持续运行，直到被取消
+    """
     logger.info("Starting IM task scheduler")
 
     while True:

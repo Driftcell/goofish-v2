@@ -7,7 +7,12 @@ scheduler = AsyncIOScheduler()
 
 def init_scheduler():
     """
-    Initialize the scheduler and start it.
+    初始化并启动任务调度器
+    
+    初始化AsyncIOScheduler实例并启动，用于管理应用中的定时任务。
+    
+    Returns:
+        None: 此函数通过副作用工作，不返回值
     """
     scheduler.start()
     logger.info("Scheduler started.")

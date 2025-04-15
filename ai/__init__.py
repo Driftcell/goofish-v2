@@ -17,10 +17,26 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 
 class AIUtils:
+    """
+    AI工具类，用于处理与人工智能相关的操作，主要与百度AI服务交互。
+    """
+    
     @cached(ttl=60 * 10)
     @staticmethod
     async def _get_access_token():
+        """
+        从百度OAuth服务获取访问令牌
+        
+        令牌会被缓存10分钟，以避免频繁API调用
+        
+        返回:
+            str: 百度AI API的访问令牌
+            
+        异常:
+            AiUtilsError: 如果令牌获取失败
+        """
         url = "https://aip.baidubce.com/oauth/2.0/token"
+        # 设置请求参数
         params = {
             "grant_type": "client_credentials",
             "client_id": os.getenv("BAIDU_API_KEY"),
@@ -31,6 +47,7 @@ class AIUtils:
                 data = await response.json()
 
                 token = data.get("access_token")
+                # 检查是否成功获取令牌
                 if token is None:
                     raise AiUtilsError(
                         response.status,
@@ -43,9 +60,23 @@ class AIUtils:
     async def generate_title(
         title: str, description: str, price: float, *, template_text: str | None = None
     ):
+        """
+        使用百度AI服务生成优化的产品标题
+        
+        参数:
+            title (str): 原始产品标题/名称
+            description (str): 产品描述文本
+            price (float): 产品价格
+            template_text (str, optional): 自定义模板字符串，如果为None，则从数据库获取模板
+        
+        返回:
+            str: AI生成的优化产品标题
+        """
+        # 获取百度API的授权令牌
         token = await AIUtils._get_access_token()
         url = os.getenv("BAIDU_API_URL") + token
 
+        # 准备提示模板
         if template_text is None:
             template = Template(MongoDB.get_db())
             prompt = await template.get("prompt")

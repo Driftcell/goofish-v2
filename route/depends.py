@@ -16,6 +16,20 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 
 async def get_token(request: Request) -> str:
+    """
+    获取并验证请求中的认证令牌
+    
+    从请求中获取token并验证其有效性，同时根据token检查和更新相关的任务配置。
+    
+    Args:
+        request (Request): FastAPI请求对象
+        
+    Returns:
+        str: 验证通过的token字符串
+        
+    Raises:
+        HTTPException: 当token缺失、无效或已过期时抛出401错误
+    """
     token = getattr(request.state, "token", None)
     if token is None:
         raise HTTPException(status_code=401, detail="X-TOKEN header missing")
@@ -152,10 +166,26 @@ async def get_token(request: Request) -> str:
 
 
 async def get_db() -> AsyncIOMotorDatabase:
+    """
+    获取MongoDB数据库连接
+    
+    返回MongoDB数据库连接实例，用于数据库操作。
+    
+    Returns:
+        AsyncIOMotorDatabase: MongoDB数据库连接对象
+    """
     return MongoDB.get_db()
 
 
 async def get_minio() -> Minio:
+    """
+    获取MinIO客户端连接
+    
+    根据环境变量配置创建并返回MinIO客户端连接实例，用于对象存储操作。
+    
+    Returns:
+        Minio: MinIO客户端连接对象
+    """
     minio_client = Minio(
         endpoint=os.getenv("MINIO_ENDPOINT"),  # type: ignore
         access_key=os.getenv("MINIO_ACCESS_KEY"),

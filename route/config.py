@@ -15,6 +15,22 @@ async def g_config(
     db: AsyncIOMotorDatabase = Depends(get_db),
     token: str = Depends(get_token),
 ):
+    """
+    获取指定名称的配置信息
+    
+    根据提供的名称和用户token获取配置信息，若配置不存在则创建默认配置。
+    
+    Args:
+        name (str): 配置名称
+        db (AsyncIOMotorDatabase): 数据库连接，通过依赖注入获取
+        token (str): 用户认证token，通过依赖注入获取
+        
+    Returns:
+        MyResponse[Any]: 包含配置值的响应对象
+        
+    Raises:
+        HTTPException: 当请求的配置名称不存在且不在预设列表中时抛出404错误
+    """
     config = await db.configs.find_one({"name": name, "token": token})
 
     presets = ["filter", "configt", "template", "description", "reply", "report"]
@@ -102,6 +118,19 @@ async def p_config(
     db: AsyncIOMotorDatabase = Depends(get_db),
     token: str = Depends(get_token),
 ):
+    """
+    更新或创建配置信息
+    
+    根据提供的配置对象和用户token更新或创建配置信息。
+    
+    Args:
+        config (Config): 配置对象，包含名称和值
+        db (AsyncIOMotorDatabase): 数据库连接，通过依赖注入获取
+        token (str): 用户认证token，通过依赖注入获取
+        
+    Returns:
+        dict: 包含操作结果的字典
+    """
     await db.configs.update_one(
         {"name": config.name, "token": token},
         update={"$set": {"value": config.value, "token": token}},
@@ -117,6 +146,19 @@ async def p_configt(
     db: AsyncIOMotorDatabase = Depends(get_db),
     token: str = Depends(get_token),
 ):
+    """
+    更新或创建类型化配置信息
+    
+    根据提供的ConfigT类型配置对象和用户token更新或创建配置信息。
+    
+    Args:
+        config (ConfigT): 类型化配置对象
+        db (AsyncIOMotorDatabase): 数据库连接，通过依赖注入获取
+        token (str): 用户认证token，通过依赖注入获取
+        
+    Returns:
+        dict: 包含操作结果的字典
+    """
     await db.configs.update_one(
         {"name": "configt", "token": token},
         {"$set": {"value": config.model_dump(), "token": token}},
@@ -130,6 +172,18 @@ async def p_configt(
 async def g_configt(
     db: AsyncIOMotorDatabase = Depends(get_db), token: str = Depends(get_token)
 ):
+    """
+    获取类型化配置信息
+    
+    根据用户token获取ConfigT类型的配置信息，若不存在则创建默认配置。
+    
+    Args:
+        db (AsyncIOMotorDatabase): 数据库连接，通过依赖注入获取
+        token (str): 用户认证token，通过依赖注入获取
+        
+    Returns:
+        MyResponse[ConfigT]: 包含类型化配置对象的响应
+    """
     config = await db.configs.find_one({"name": "configt", "token": token})
     if not config:
         await db.configs.update_one(
